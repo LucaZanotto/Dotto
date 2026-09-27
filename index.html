@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>DOTTO</title>
+<meta name="description" content="DOTTO: indovina la parola di 5 lettere con gli indizi a puntini. Una parola nuova ogni giorno.">
+<meta name="theme-color" content="#24272c">
+<meta property="og:title" content="DOTTO">
+<meta property="og:description" content="Indovina la parola di 5 lettere con gli indizi a puntini. Una parola nuova ogni giorno.">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.svg">
+<style>
+@font-face{
+  font-family:"Big Shoulders";
+  src:url("fonts/BigShouldersText.woff2") format("woff2");
+  font-weight:100 900; font-style:normal; font-display:swap;
+}
+:root{
+  --bg:#24272c; --panel:#090b0e; --bezel:#15181c; --off:#161a1e;
+  --led:#f7f2e6; --amber:#ffb324; --blue:#4c8dff; --green:#3bd36b; --red:#ff4c3f;
+  --fg:#edece7; --muted:#9aa0a8; --dim:#8a9099;
+  --key:#363a41; --key-hi:#454a52; --key-edge:#1b1e22; --key-fg:#edece7;
+  --surface:#2c3036; --surface-line:#3d424a;
+  --font:"Big Shoulders","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font); font-weight:500; font-size:17px;
+  display:flex; flex-direction:column; align-items:center;
+  overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
+}
+button{font-family:inherit; font-weight:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
+button:focus-visible,a:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
+a{color:var(--amber)}
+
+#app{width:100%; max-width:540px; height:100%; display:flex; flex-direction:column; padding:0 12px 8px}
+
+/* ---------- header ---------- */
+.top{display:flex; align-items:center; gap:10px; padding:10px 2px 8px; flex:0 0 auto}
+.logo{display:flex; align-items:center; gap:0; height:34px; flex:0 0 auto}
+.logo svg{height:34px; width:auto; display:block}
+.meta{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; line-height:1.1}
+.meta b{font-weight:700; font-size:16px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.meta span{font-size:13px; color:var(--muted); letter-spacing:.06em; white-space:nowrap}
+.iconbtn{width:42px;height:42px;border:0;background:transparent;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.iconbtn:active{background:var(--key)}
+.iconbtn svg{width:26px;height:26px;fill:var(--fg)}
+
+/* ---------- board ---------- */
+main{flex:1 1 auto; display:flex; flex-direction:column; align-items:center; min-height:0; gap:10px}
+.stage{flex:1 1 auto; width:100%; display:flex; align-items:center; justify-content:center; min-height:0}
+.bottom{flex:0 0 auto; width:100%; display:flex; flex-direction:column; align-items:center}
+.panel{
+  width:min(100%, 470px, calc((100vh - 330px) / 1.07));
+  width:min(100%, 470px, calc((100dvh - 330px) / 1.07));
+  background:var(--panel); border-radius:14px; padding:10px 12px 10px 8px;
+  border:1px solid var(--bezel);
+  box-shadow:inset 0 0 0 3px #000, inset 0 12px 30px rgba(0,0,0,.6), 0 10px 30px rgba(0,0,0,.35);
+  display:grid; grid-template-columns:28fr repeat(5, 48fr); align-items:center;
+}
+.row{display:contents}
+.ind svg,.cell svg{width:100%;height:auto;display:block}
+.ind{padding-right:2px}
+.cell{position:relative}
+.cell.typing svg .on{animation:blink .12s steps(2,end) 1}
+.cell.reveal svg .on{animation:light .5s steps(3,end) both}
+.row.shake .cell{animation:shake .4s ease-in-out}
+@keyframes blink{0%{opacity:0}100%{opacity:1}}
+@keyframes light{0%{opacity:0}30%{opacity:.35}60%{opacity:0}100%{opacity:1}}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+@media (prefers-reduced-motion: reduce){
+  .cell.typing svg .on,.cell.reveal svg .on,.row.shake .cell{animation:none}
+}
+
+/* ---------- keyboard ---------- */
+.keyboard{width:100%; max-width:520px; display:flex; flex-direction:column; gap:8px; flex:0 0 auto; padding-bottom:2px}
+.krow{display:flex; justify-content:center; gap:6px}
+.key{
+  flex:1 1 0; max-width:46px; height:56px; border:0; border-radius:7px; padding:0;
+  background:linear-gradient(var(--key-hi), var(--key)); color:var(--key-fg);
+  box-shadow:0 3px 0 var(--key-edge); display:flex; align-items:center; justify-content:center; user-select:none;
+  transition:transform .05s, box-shadow .05s;
+}
+.key:active{transform:translateY(2px); box-shadow:0 1px 0 var(--key-edge)}
+.key svg{width:22px;height:auto;display:block}
+.key.wide{flex:1.7 1 0; max-width:78px; font-weight:700; font-size:14px; letter-spacing:.08em}
+.key.wide svg{width:24px}
+.key.known{background:linear-gradient(#6aa2ff, var(--blue)); color:#fff; box-shadow:0 3px 0 #1f4fa6}
+.foot{display:flex; justify-content:center; gap:22px; padding:4px 0 2px; font-size:13px; color:var(--muted); letter-spacing:.06em}
+.foot button{border:0;background:transparent;padding:6px 4px;color:var(--muted);font-size:13px;letter-spacing:.06em}
+.foot button:active{color:var(--fg)}
+#adslot:empty{display:none}
+#adslot{width:100%; max-width:520px; margin:6px auto 0; text-align:center}
+
+/* ---------- toast ---------- */
+#toast{
+  position:fixed; left:50%; top:calc(env(safe-area-inset-top,0px) + 70px); transform:translateX(-50%);
+  background:var(--led); color:#111; padding:10px 18px; border-radius:8px; font-weight:700; font-size:16px; letter-spacing:.03em;
+  opacity:0; pointer-events:none; transition:opacity .15s; z-index:50; white-space:nowrap;
+}
+#toast.show{opacity:1}
+
+/* ---------- modals ---------- */
+.overlay{
+  position:fixed; inset:0; background:rgba(8,9,11,.66); display:none; align-items:flex-end; justify-content:center; z-index:40;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 0 0;
+}
+.overlay.open{display:flex}
+.modal{
+  width:100%; max-width:540px; max-height:100%; overflow:auto; background:var(--surface); color:var(--fg);
+  border:1px solid var(--surface-line); border-bottom:0;
+  border-radius:18px 18px 0 0; padding:14px 20px calc(20px + env(safe-area-inset-bottom,0px));
+  animation:up .2s ease-out;
+}
+@media (min-width:620px){
+  .overlay{align-items:center; padding:20px}
+  .modal{border-radius:18px; border-bottom:1px solid var(--surface-line); max-height:92vh; padding-bottom:20px}
+}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.modal{animation:none}}
+.mhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
+.mhead h2{margin:0; font-size:24px; font-weight:800; letter-spacing:.02em}
+.close{border:0;background:transparent;width:40px;height:40px;border-radius:8px;font-size:24px;font-weight:700;color:var(--muted)}
+.close:active{background:var(--key)}
+.modal h3{font-size:13px; font-weight:700; color:var(--muted); letter-spacing:.08em; margin:18px 0 8px}
+.modal p{margin:8px 0; line-height:1.45; font-size:17px}
+.modal p.small{font-size:15px; color:var(--muted)}
+.seg{display:flex; border:1.5px solid var(--surface-line); border-radius:9px; overflow:hidden; background:var(--bg)}
+.seg button{flex:1; border:0; background:transparent; padding:11px 4px; font-weight:700; font-size:16px; letter-spacing:.03em; color:var(--muted)}
+.seg button + button{border-left:1.5px solid var(--surface-line)}
+.seg button.on{background:var(--led); color:#111}
+.btn{
+  width:100%; border:0; border-radius:10px; background:var(--amber); color:#1a1200;
+  padding:14px; font-weight:800; font-size:17px; letter-spacing:.04em; margin-top:10px;
+}
+.btn.ghost{background:transparent; color:var(--fg); border:1.5px solid var(--surface-line)}
+.btn:active{filter:brightness(.92)}
+.btn:disabled{opacity:.4}
+.two{display:flex; gap:10px}
+.center{text-align:center}
+
+/* stats */
+.stats{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; text-align:center; margin-top:8px}
+.stats b{display:block; font-size:32px; font-weight:800; line-height:1}
+.stats span{font-size:13px; color:var(--muted); line-height:1.2; display:block; margin-top:4px}
+.dist{margin-top:4px}
+.drow{display:flex; align-items:center; gap:10px; margin:5px 0; font-size:15px; font-weight:700}
+.drow .bar{height:22px; background:var(--dim); color:var(--fg); border-radius:3px; min-width:24px; padding:0 7px; display:flex; align-items:center; justify-content:flex-end; font-size:14px}
+.drow .bar.hit{background:var(--amber); color:#1a1200}
+.countdown{font-variant-numeric:tabular-nums; color:var(--fg); font-weight:700}
+
+/* result word + examples */
+.wordrow{display:flex; gap:6px; justify-content:center; margin:10px 0 4px}
+.wordrow .cell,.exrow .cell{width:52px; background:var(--panel); border-radius:6px; padding:3px 2px; flex:0 0 auto}
+.exrow{display:flex; gap:6px; align-items:center; margin:8px 0}
+.exrow .cell{width:46px}
+.exrow .ind{width:26px; flex:0 0 auto; background:var(--panel); border-radius:5px; padding:3px 2px}
+.exlbl{font-size:14px; font-weight:700; color:var(--muted); margin:12px 0 2px; letter-spacing:.03em}
+.legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:8px 0 4px; font-size:15px; font-weight:600}
+.legend i{display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:7px; vertical-align:-1px; box-shadow:0 0 6px currentColor}
+.modal .result-title{font-weight:800; font-size:26px; margin:6px 0 0; text-align:center; letter-spacing:.02em}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo" id="logo" aria-label="DOTTO"></div>
+    <div class="meta"><b id="metaTop"></b><span id="metaBottom"></span></div>
+    <button class="iconbtn" id="btnStats" aria-label="Statistiche">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18v-2H3zm2-3h3V9H5zm5 0h3V4h-3zm5 0h3v-7h-3z"/></svg>
+    </button>
+    <button class="iconbtn" id="btnMenu" aria-label="Menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2.2H3zm0 4.9h18v2.2H3zm0 4.9h18V18H3z"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <div class="stage"><div class="panel" id="board" aria-label="Tabellone"></div></div>
+    <div class="bottom">
+      <div class="keyboard" id="keyboard" aria-label="Tastiera"></div>
+      <div class="foot"><button id="btnHelpFoot"></button><button id="btnInfoFoot"></button></div>
+      <!-- Spazio pubblicità: incolla qui dentro il codice dell'annuncio (vedi README) -->
+      <div id="adslot"></div>
+    </div>
+  </main>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Menu -->
+<div class="overlay" id="ovMenu">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="mhead"><h2 id="menuTitle"></h2><button class="close" data-close aria-label="Chiudi">×</button></div>
+    <h3 data-t="mode"></h3>
+    <div class="seg" id="segMode">
+      <button data-mode="classic" data-t="classic"></button>
+      <button data-mode="plus">Plus</button>
+      <button data-mode="pro">Pro</button>
+    </div>
+    <p class="small" id="modeDesc"></p>
+    <h3 data-t="wordsLang"></h3>
+    <div class="seg" id="segLang">
+      <button data-lang="it">Italiano</button>
+      <button data-lang="en">English</button>
+    </div>
+    <h3 data-t="play"></h3>
+    <button class="btn" id="btnDaily"></button>
+    <button class="btn ghost" id="btnPractice"></button>
+    <button class="btn ghost" id="btnHelp"></button>
+  </div>
+</div>
+
+<!-- Help -->
+<div class="overlay" id="ovHelp">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="mhead"><h2 id="helpTitle"></h2><button class="close" data-close aria-label="Chiudi">×</button></div>
+    <div id="helpBody"></div>
+    <button class="btn" data-close id="btnGotIt"></button>
+  </div>
+</div>
+
+<!-- Info -->
+<div class="overlay" id="ovInfo">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="mhead"><h2 id="infoTitle"></h2><button class="close" data-close aria-label="Chiudi">×</button></div>
+    <div id="infoBody"></div>
+  </div>
+</div>
+
+<!-- Stats / result -->
+<div class="overlay" id="ovStats">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="mhead"><h2 id="statsTitle"></h2><button class="close" data-close aria-label="Chiudi">×</button></div>
+    <div id="resultBox"></div>
+    <div class="stats" id="statsGrid"></div>
+    <h3 data-t="dist"></h3>
+    <div class="dist" id="dist"></div>
+    <p class="small center" id="nextWord"></p>
+    <div class="two">
+      <button class="btn" id="btnShare"></button>
+      <button class="btn ghost" id="btnNew"></button>
+    </div>
+  </div>
+</div>
+
+<script src="words-it.js"></script>
+<script src="words-en.js"></script>
+<script>
+/* ================= CONFIG ================= */
+const NAME = "DOTTO";
+const SITE_URL = "";              // es. "https://tuonome.github.io/dotto" (aggiunto al testo condiviso)
+const EPOCH = Date.UTC(2026, 8, 27); // 27 settembre 2026 = giorno 1
+const LS = "dotto:";
+
+/* ================= DATA ================= */
+const WORDS = { it: window.WORDS_IT, en: window.WORDS_EN };
+const ALLOWED = {};
+for (const l in WORDS){ ALLOWED[l] = new Set(WORDS[l].allowed.split(" ")); WORDS[l].answers.forEach(w => ALLOWED[l].add(w)); }
+
+/* 5x7 dot-matrix font */
+const FONT_SRC = {
+A:".###.|#...#|#...#|#####|#...#|#...#|#...#", B:"####.|#...#|#...#|####.|#...#|#...#|####.",
+C:".###.|#...#|#....|#....|#....|#...#|.###.", D:"###..|#..#.|#...#|#...#|#...#|#..#.|###..",
+E:"#####|#....|#....|####.|#....|#....|#####", F:"#####|#....|#....|####.|#....|#....|#....",
+G:".###.|#...#|#....|#.###|#...#|#...#|.####", H:"#...#|#...#|#...#|#####|#...#|#...#|#...#",
+I:".###.|..#..|..#..|..#..|..#..|..#..|.###.", J:"..###|...#.|...#.|...#.|...#.|#..#.|.##..",
+K:"#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#", L:"#....|#....|#....|#....|#....|#....|#####",
+M:"#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#", N:"#...#|#...#|##..#|#.#.#|#..##|#...#|#...#",
+O:".###.|#...#|#...#|#...#|#...#|#...#|.###.", P:"####.|#...#|#...#|####.|#....|#....|#....",
+Q:".###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#", R:"####.|#...#|#...#|####.|#.#..|#..#.|#...#",
+S:".####|#....|#....|.###.|....#|....#|####.", T:"#####|..#..|..#..|..#..|..#..|..#..|..#..",
+U:"#...#|#...#|#...#|#...#|#...#|#...#|.###.", V:"#...#|#...#|#...#|#...#|#...#|.#.#.|..#..",
+W:"#...#|#...#|#...#|#.#.#|#.#.#|#.#.#|.#.#.", X:"#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#",
+Y:"#...#|#...#|#...#|.#.#.|..#..|..#..|..#..", Z:"#####|....#|...#.|..#..|.#...|#....|#####"
+};
+const FONT = {}; for (const k in FONT_SRC) FONT[k] = FONT_SRC[k].split("|");
+const ROWS = 7, COLS = 5, TRIES = 5, LEN = 5;
+
+/* ================= I18N ================= */
+const T = {
+  it: {
+    letters:"5 LETTERE", day:"GIORNO", practice:"ALLENAMENTO",
+    menu:"Menu", mode:"MODALITÀ", classic:"Classica", wordsLang:"LINGUA DELLE PAROLE", play:"GIOCA",
+    daily:"Parola del giorno", practiceBtn:"Allenamento con parola casuale", howto:"Come si gioca", info:"Info e privacy",
+    modeDesc:{ classic:"Ad ogni tentativo viene rivelata una riga di pixel in più, dall'alto verso il basso.",
+      plus:"Righe e colonne vengono rivelate in un ordine diverso ad ogni partita e si accumulano.",
+      pro:"Ad ogni tentativo viene rivelata una sola riga o colonna, senza accumulo. Per esperti." },
+    stats:"Statistiche", played:"Giocate", wins:"Vittorie", streak:"Serie attuale", best:"Serie migliore", dist:"DISTRIBUZIONE DEI TENTATIVI",
+    next:"Prossima parola del giorno tra", share:"Condividi", newWord:"Nuova parola",
+    found:n=>`Trovata in ${n} su 5`, notFound:"Non trovata", wordWas:"La parola era",
+    needLetters:"Servono 5 lettere", invalid:"Parola non valida", copied:"Risultato copiato", copyFail:"Copia non riuscita", newReady:"Nuova parola pronta",
+    gotIt:"Ho capito", shareDay:n=>`giorno ${n}`, sharePractice:"allenamento",
+    help:`
+      <p>Hai 5 tentativi per indovinare una parola di 5 lettere. Ogni tentativo deve essere una parola valida.</p>
+      <p>Dopo ogni tentativo le lettere che hai scritto vengono colorate pixel per pixel:</p>
+      <div class="legend">
+        <span><i style="color:var(--blue);background:var(--blue)"></i>Lettera giusta in questa posizione</span>
+        <span><i style="color:var(--green);background:var(--green)"></i>La lettera giusta ha questo pixel</span>
+        <span><i style="color:var(--red);background:var(--red)"></i>La lettera giusta non ha questo pixel</span>
+        <span><i style="color:transparent;background:var(--dim)"></i>Pixel non ancora rivelato</span>
+      </div>
+      <p>Al primo tentativo viene rivelata solo la prima riga di pixel. Ad ogni tentativo successivo si aggiunge una riga, quindi al quinto conosci le prime cinque righe. La piccola griglia a sinistra di ogni riga mostra quali pixel vengono rivelati.</p>
+      <div class="exlbl">Esempio: la parola segreta è SALTO. Primo tentativo SPADA:</div>
+      <div class="exrow" data-ex="SALTO|SPADA|0"></div>
+      <p class="small">La S è al posto giusto ed è tutta blu. La P è sbagliata: nella prima riga la lettera giusta ha i tre pixel centrali (verdi) ma non quello a sinistra (rosso). Lì può stare una A, una C, una O, non una E o una T che hanno il pixel in alto a sinistra.</p>
+      <div class="exlbl">Terzo tentativo SALVE, con tre righe rivelate:</div>
+      <div class="exrow" data-ex="SALTO|SALVE|2"></div>
+      <p class="small">Ora S, A e L sono blu. La V dice che la lettera giusta ha i due pixel agli angoli in alto (verdi) ma non quelli laterali nelle righe 2 e 3 (rossi): una T, per esempio. La E dice che in alto ha i tre pixel centrali ma non gli angoli (rossi), e che ha il pixel a sinistra nelle righe 2 e 3 (verdi): una O, una C, una G.</p>
+      <h3>MODALITÀ PLUS E PRO</h3>
+      <p class="small">In modalità Plus i pixel vengono rivelati per righe o per colonne, in un ordine che cambia ogni partita e che vedi nella griglia a sinistra: ad ogni tentativo si aggiunge una linea. In modalità Pro ad ogni tentativo viene rivelata una sola linea, senza accumulare le precedenti.</p>`,
+    infoBody:`
+      <p>${"DOTTO"} è un gioco di parole gratuito. La parola del giorno è la stessa per tutti e cambia a mezzanotte; l'allenamento propone parole casuali senza limiti.</p>
+      <h3>PRIVACY</h3>
+      <p class="small">Nessun account e nessun cookie di tracciamento. Progressi, statistiche e impostazioni restano nel tuo browser (localStorage) e non vengono inviati a nessun server.</p>
+      <h3>CREDITI</h3>
+      <p class="small">Meccanica di gioco ispirata a Pixletters di Nebula Bytes, che non ha alcun legame con questo sito. Liste di parole derivate da fonti aperte (vedi il README del progetto). Carattere Big Shoulders di Patric King, licenza SIL OFL.</p>`
+  },
+  en: {
+    letters:"5 LETTERS", day:"DAY", practice:"PRACTICE",
+    menu:"Menu", mode:"MODE", classic:"Classic", wordsLang:"WORD LANGUAGE", play:"PLAY",
+    daily:"Word of the day", practiceBtn:"Practice with a random word", howto:"How to play", info:"Info & privacy",
+    modeDesc:{ classic:"Each guess reveals one more row of pixels, from the top down.",
+      plus:"Rows and columns are revealed in an order that changes every game, and they add up.",
+      pro:"Each guess reveals a single row or column, with no accumulation. For experts." },
+    stats:"Statistics", played:"Played", wins:"Win rate", streak:"Current streak", best:"Best streak", dist:"GUESS DISTRIBUTION",
+    next:"Next word of the day in", share:"Share", newWord:"New word",
+    found:n=>`Solved in ${n} of 5`, notFound:"Not solved", wordWas:"The word was",
+    needLetters:"5 letters needed", invalid:"Not a valid word", copied:"Result copied", copyFail:"Copy failed", newReady:"New word ready",
+    gotIt:"Got it", shareDay:n=>`day ${n}`, sharePractice:"practice",
+    help:`
+      <p>You have 5 tries to guess a 5-letter word. Every try must be a valid word.</p>
+      <p>After each try, the letters you typed get colored pixel by pixel:</p>
+      <div class="legend">
+        <span><i style="color:var(--blue);background:var(--blue)"></i>Right letter in this spot</span>
+        <span><i style="color:var(--green);background:var(--green)"></i>The right letter has this pixel</span>
+        <span><i style="color:var(--red);background:var(--red)"></i>The right letter doesn't have this pixel</span>
+        <span><i style="color:transparent;background:var(--dim)"></i>Pixel not revealed yet</span>
+      </div>
+      <p>The first try reveals only the top row of pixels. Every following try adds one row, so by the fifth you know the top five rows. The small grid on the left of each row shows which pixels get revealed.</p>
+      <div class="exlbl">Example: the secret word is SALTY. First try SPADE:</div>
+      <div class="exrow" data-ex="SALTY|SPADE|0"></div>
+      <p class="small">S is in the right spot and turns fully blue. P is wrong: in the top row, the right letter has the three middle pixels (green) but not the left one (red). So it could be an A, a C or an O, but not an E or a T, which have the top-left pixel.</p>
+      <div class="exlbl">Third try SALVE, with three rows revealed:</div>
+      <div class="exrow" data-ex="SALTY|SALVE|2"></div>
+      <p class="small">Now S, A and L are blue. V says the right letter has both top corners (green) but not the side pixels in rows 2 and 3 (red): a T, for instance. E says the right letter has both top corners but not the middle three (red), and has the left pixel in rows 2 and 3 (green): a Y.</p>
+      <h3>PLUS AND PRO MODES</h3>
+      <p class="small">In Plus mode pixels are revealed by rows or columns, in an order that changes every game and that you can see in the grid on the left: each try adds one line. In Pro mode each try reveals a single line, without keeping the previous ones.</p>`,
+    infoBody:`
+      <p>${"DOTTO"} is a free word game. The word of the day is the same for everyone and changes at midnight; practice mode offers unlimited random words.</p>
+      <h3>PRIVACY</h3>
+      <p class="small">No account and no tracking cookies. Progress, statistics and settings stay in your browser (localStorage) and are never sent to a server.</p>
+      <h3>CREDITS</h3>
+      <p class="small">Game mechanics inspired by Pixletters by Nebula Bytes, which is not affiliated with this site. Word lists derived from open sources (see the project README). Big Shoulders typeface by Patric King, SIL OFL license.</p>`
+  }
+};
+function tr(key){ const v = T[settings.lang][key]; return v === undefined ? T.it[key] : v; }
+
+/* ================= UTIL ================= */
+function hash32(str){ let h = 2166136261 >>> 0; for (let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function seededShuffle(arr, seed){ const a = arr.slice(); const r = mulberry32(seed); for (let i=a.length-1;i>0;i--){ const j = Math.floor(r()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function lsGet(k, d){ try { const v = localStorage.getItem(LS + k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } }
+function lsSet(k, v){ try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch(e){} }
+function todayNumber(){ const n = new Date(); const d = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); return Math.floor((d - EPOCH) / 86400000) + 1; }
+function msToMidnight(){ const n = new Date(); const m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 0); return m - n; }
+
+const PERM = {};
+function permFor(lang){ if(!PERM[lang]) PERM[lang] = seededShuffle(WORDS[lang].answers, hash32(NAME.toLowerCase() + "-" + lang + "-v1")); return PERM[lang]; }
+function dailyWord(lang, n){ const p = permFor(lang); const i = ((n - 1) % p.length + p.length) % p.length; return p[i].toUpperCase(); }
+function randomWord(lang){ const a = WORDS[lang].answers; return a[Math.floor(Math.random()*a.length)].toUpperCase(); }
+
+/* lines revealed per try: array of {t:'r'|'c', i} */
+function makeLines(seed){
+  const r = mulberry32(seed);
+  const rows = seededShuffle([0,1,2,3,4,5,6], seed ^ 0x9e37).slice(0,3).map(i => ({t:"r", i}));
+  const cols = seededShuffle([0,1,2,3,4], seed ^ 0x51ed).slice(0,2).map(i => ({t:"c", i}));
+  const all = rows.concat(cols);
+  for (let i=all.length-1;i>0;i--){ const j = Math.floor(r()*(i+1)); [all[i],all[j]] = [all[j],all[i]]; }
+  return all;
+}
+function revealedLines(tryIdx, mode, lines){
+  if (mode === "classic") return Array.from({length: tryIdx + 1}, (_, i) => ({t:"r", i}));
+  if (mode === "plus") return lines.slice(0, tryIdx + 1);
+  return [lines[tryIdx]];
+}
+function revealedSet(lines){
+  const s = new Set();
+  for (const l of lines){
+    if (l.t === "r") for (let c=0;c<COLS;c++) s.add(l.i*COLS + c);
+    else for (let r=0;r<ROWS;r++) s.add(r*COLS + l.i);
+  }
+  return s;
+}
+function evaluate(guess, secret, tryIdx, mode, lines){
+  const rev = revealedSet(revealedLines(tryIdx, mode, lines));
+  const out = [];
+  for (let i=0;i<LEN;i++){
+    const ch = guess[i], g = FONT[ch], s = FONT[secret[i]];
+    const correct = ch === secret[i];
+    const px = [];
+    for (let r=0;r<ROWS;r++){
+      px[r] = [];
+      for (let c=0;c<COLS;c++){
+        if (g[r][c] !== "#") { px[r][c] = null; continue; }
+        if (correct) px[r][c] = "b";
+        else if (rev.has(r*COLS + c)) px[r][c] = s[r][c] === "#" ? "g" : "r";
+        else px[r][c] = "u";
+      }
+    }
+    out.push({ch, correct, px});
+  }
+  return out;
+}
+
+/* ================= LED RENDER ================= */
+const COLOR = { b:"var(--blue)", g:"var(--green)", r:"var(--red)", u:"var(--dim)", w:"var(--led)", a:"var(--amber)" };
+const P = 8; // led pitch
+function ledSVG(ch, px, fill, opts){
+  /* draws one 5x7 cell (48x56 units: 5 leds + spacing column). px: null -> all lit in `fill` */
+  const o = opts || {};
+  const g = ch ? FONT[ch] : null;
+  let s = `<svg viewBox="0 0 48 56" aria-hidden="true">`;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const x = 4 + c*P, y = 4 + r*P;
+    const lit = g && g[r][c] === "#";
+    if (!lit){ if (!o.noOff) s += `<circle cx="${x}" cy="${y}" r="1.7" fill="var(--off)"/>`; continue; }
+    const col = px ? COLOR[px[r][c]] : fill;
+    const halo = (px ? px[r][c] !== "u" : true) && !o.noHalo;
+    s += `<g class="on">${halo ? `<circle cx="${x}" cy="${y}" r="5.6" fill="${col}" opacity=".16"/>` : ""}<circle cx="${x}" cy="${y}" r="3.3" fill="${col}"/></g>`;
+  }
+  return s + "</svg>";
+}
+function keySVG(ch){
+  const g = FONT[ch];
+  let s = `<svg viewBox="0 0 40 56" aria-hidden="true">`;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) if (g[r][c] === "#") s += `<circle cx="${4 + c*P}" cy="${4 + r*P}" r="3.1" fill="currentColor"/>`;
+  return s + "</svg>";
+}
+function indicatorSVG(lines){
+  const rev = revealedSet(lines);
+  let s = `<svg viewBox="0 0 28 56" aria-hidden="true">`;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    const on = rev.has(r*COLS + c);
+    s += `<circle cx="${5 + c*4}" cy="${16 + r*4}" r="${on ? 1.5 : 1.0}" fill="${on ? "var(--muted)" : "var(--off)"}"/>`;
+  }
+  return s + "</svg>";
+}
+function logoSVG(){
+  const n = NAME.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 8);
+  let s = `<svg viewBox="0 0 ${n.length*48 - 8} 56" aria-hidden="true">`;
+  [...n].forEach((ch, i) => {
+    const g = FONT[ch]; if (!g) return;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+      const x = 4 + i*48 + c*P, y = 4 + r*P;
+      if (g[r][c] === "#") s += `<circle cx="${x}" cy="${y}" r="5" fill="var(--amber)" opacity=".18"/><circle cx="${x}" cy="${y}" r="3.1" fill="var(--amber)"/>`;
+      else s += `<circle cx="${x}" cy="${y}" r="1.6" fill="var(--key)"/>`;
+    }
+  });
+  return s + "</svg>";
+}
+
+/* ================= STATE ================= */
+const settings = Object.assign({ lang:"it", mode:"classic", seenHelp:false }, lsGet("settings", {}));
+if (!WORDS[settings.lang]) settings.lang = "it";
+let game = null;
+let countdownTimer = null;
+
+function saveSettings(){ lsSet("settings", settings); }
+function statsKey(g){ return `stats:${g.lang}:${g.mode}:${g.kind}`; }
+
+function newDaily(showResult){
+  const n = todayNumber();
+  const lang = settings.lang, mode = settings.mode;
+  const base = { lang, mode, kind:"daily", n, secret: dailyWord(lang, n), lines: makeLines(hash32(`${lang}-${mode}-${n}`)), guesses:[], current:"", status:"playing" };
+  const saved = lsGet(`daily:${lang}:${mode}:${n}`, null);
+  if (saved && saved.secret === base.secret){ base.guesses = saved.guesses || []; base.status = saved.status || "playing"; }
+  game = base;
+  render(); updateHeader();
+  if (showResult && game.status !== "playing") setTimeout(openStats, 400);
+}
+function newPractice(){
+  const lang = settings.lang, mode = settings.mode;
+  game = { lang, mode, kind:"practice", n: 0, secret: randomWord(lang), lines: makeLines((Math.random()*4294967295) >>> 0), guesses:[], current:"", status:"playing" };
+  render(); updateHeader();
+  toast(tr("newReady"));
+}
+function persistGame(){ if (game.kind === "daily") lsSet(`daily:${game.lang}:${game.mode}:${game.n}`, { secret: game.secret, guesses: game.guesses, status: game.status }); }
+
+/* ================= RENDER ================= */
+const boardEl = document.getElementById("board");
+const kbEl = document.getElementById("keyboard");
+
+function applyStrings(){
+  document.documentElement.lang = settings.lang;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = tr(el.dataset.t));
+  document.getElementById("menuTitle").textContent = tr("menu");
+  document.getElementById("btnDaily").textContent = tr("daily");
+  document.getElementById("btnPractice").textContent = tr("practiceBtn");
+  document.getElementById("btnHelp").textContent = tr("howto");
+  document.getElementById("btnHelpFoot").textContent = tr("howto");
+  document.getElementById("btnInfoFoot").textContent = tr("info");
+  document.getElementById("helpTitle").textContent = tr("howto");
+  document.getElementById("infoTitle").textContent = tr("info");
+  document.getElementById("btnGotIt").textContent = tr("gotIt");
+  document.getElementById("btnShare").textContent = tr("share");
+  document.getElementById("btnNew").textContent = tr("newWord");
+  document.getElementById("modeDesc").textContent = tr("modeDesc")[settings.mode];
+}
+function updateHeader(){
+  const modeLbl = game.mode === "classic" ? "" : " " + game.mode.toUpperCase();
+  document.getElementById("metaTop").textContent = game.kind === "daily" ? `${tr("day")} ${game.n}` : tr("practice");
+  document.getElementById("metaBottom").textContent = `${game.lang.toUpperCase()}  ${tr("letters")}${modeLbl}`;
+}
+
+function render(animateRow){
+  let html = "";
+  const results = game.guesses.map((w, i) => evaluate(w, game.secret, i, game.mode, game.lines));
+  for (let r=0;r<TRIES;r++){
+    html += `<div class="row" data-row="${r}"><div class="ind">${indicatorSVG(revealedLines(r, game.mode, game.lines))}</div>`;
+    for (let c=0;c<LEN;c++){
+      if (r < game.guesses.length){
+        const p = results[r][c];
+        const anim = (animateRow === r) ? ` reveal" style="--d:${c*90}ms` : "";
+        html += `<div class="cell${anim}">${ledSVG(p.ch, p.px)}</div>`;
+      } else if (r === game.guesses.length && game.status === "playing"){
+        const ch = game.current[c];
+        html += `<div class="cell${ch ? " typing" : ""}">${ledSVG(ch || null, null, COLOR.w)}</div>`;
+      } else {
+        html += `<div class="cell">${ledSVG(null)}</div>`;
+      }
+    }
+    html += "</div>";
+  }
+  boardEl.innerHTML = html;
+  boardEl.querySelectorAll(".cell.reveal").forEach(el => { el.querySelectorAll(".on").forEach(g => g.style.animationDelay = el.style.getPropertyValue("--d")); });
+  renderKeyboard(results);
+}
+
+const KEYS = ["QWERTYUIOP","ASDFGHJKL","ZXCVBNM"];
+function renderKeyboard(results){
+  const known = new Set();
+  results.forEach(res => res.forEach(p => { if (p.correct) known.add(p.ch); }));
+  let html = "";
+  KEYS.forEach((row, ri) => {
+    html += '<div class="krow">';
+    if (ri === 2) html += `<button class="key wide" data-key="ENTER" aria-label="Enter">${settings.lang === "it" ? "INVIO" : "ENTER"}</button>`;
+    for (const ch of row) html += `<button class="key${known.has(ch) ? " known" : ""}" data-key="${ch}" aria-label="${ch}">${keySVG(ch)}</button>`;
+    if (ri === 2) html += '<button class="key wide" data-key="BACK" aria-label="Backspace"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22 3H7L1 12l6 9h15a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-3.6 13.6-1.4 1.4-3-3-3 3-1.4-1.4 3-3-3-3L11 7.6l3 3 3-3 1.4 1.4-3 3z"/></svg></button>';
+    html += "</div>";
+  });
+  kbEl.innerHTML = html;
+}
+
+/* ================= INPUT ================= */
+function anyModalOpen(){ return !!document.querySelector(".overlay.open"); }
+function typeChar(ch){
+  if (game.status !== "playing" || game.current.length >= LEN) return;
+  game.current += ch; render();
+}
+function backspace(){
+  if (game.status !== "playing" || !game.current.length) return;
+  game.current = game.current.slice(0, -1); render();
+}
+function submit(){
+  if (game.status !== "playing") return;
+  if (game.current.length < LEN){ toast(tr("needLetters")); shakeRow(); return; }
+  if (!ALLOWED[game.lang].has(game.current.toLowerCase())){ toast(tr("invalid")); shakeRow(); return; }
+  const w = game.current; game.current = "";
+  game.guesses.push(w);
+  const idx = game.guesses.length - 1;
+  if (w === game.secret) game.status = "won";
+  else if (game.guesses.length >= TRIES) game.status = "lost";
+  persistGame();
+  render(idx);
+  if (game.status !== "playing"){ recordStats(); setTimeout(openStats, 900); }
+}
+function shakeRow(){
+  const row = boardEl.querySelector(`.row[data-row="${game.guesses.length}"]`);
+  if (!row) return; row.classList.remove("shake"); void row.offsetWidth; row.classList.add("shake");
+}
+kbEl.addEventListener("click", e => {
+  const b = e.target.closest("button[data-key]"); if (!b) return;
+  const k = b.dataset.key;
+  if (k === "ENTER") submit(); else if (k === "BACK") backspace(); else typeChar(k);
+});
+document.addEventListener("keydown", e => {
+  if (anyModalOpen()){ if (e.key === "Escape") closeAll(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "Enter") submit();
+  else if (e.key === "Backspace") backspace();
+  else if (/^[a-zA-Z]$/.test(e.key)) typeChar(e.key.toUpperCase());
+});
+
+/* ================= TOAST ================= */
+let toastT = null;
+function toast(msg){
+  const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+/* ================= MODALS ================= */
+function openModal(id){ document.getElementById(id).classList.add("open"); }
+function closeAll(){ document.querySelectorAll(".overlay.open").forEach(o => o.classList.remove("open")); if (countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; } }
+document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeAll));
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) closeAll(); }));
+
+function refreshMenu(){
+  document.querySelectorAll("#segMode button").forEach(b => b.classList.toggle("on", b.dataset.mode === settings.mode));
+  document.querySelectorAll("#segLang button").forEach(b => b.classList.toggle("on", b.dataset.lang === settings.lang));
+  applyStrings();
+}
+document.getElementById("btnMenu").addEventListener("click", () => { refreshMenu(); openModal("ovMenu"); });
+document.getElementById("segMode").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  settings.mode = b.dataset.mode; saveSettings(); refreshMenu();
+  if (game.kind === "daily") newDaily(); else newPractice();
+});
+document.getElementById("segLang").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  settings.lang = b.dataset.lang; saveSettings(); refreshMenu();
+  if (game.kind === "daily") newDaily(); else newPractice();
+});
+document.getElementById("btnDaily").addEventListener("click", () => { closeAll(); newDaily(); });
+document.getElementById("btnPractice").addEventListener("click", () => { closeAll(); newPractice(); });
+document.getElementById("btnHelp").addEventListener("click", () => { closeAll(); openHelp(); });
+document.getElementById("btnHelpFoot").addEventListener("click", openHelp);
+document.getElementById("btnInfoFoot").addEventListener("click", () => { applyStrings(); document.getElementById("infoBody").innerHTML = tr("infoBody"); openModal("ovInfo"); });
+
+function openHelp(){
+  applyStrings();
+  const body = document.getElementById("helpBody");
+  body.innerHTML = tr("help");
+  body.querySelectorAll("[data-ex]").forEach(el => {
+    const [secret, guess, k] = el.dataset.ex.split("|");
+    const res = evaluate(guess, secret, +k, "classic", []);
+    let html = `<div class="ind">${indicatorSVG(revealedLines(+k, "classic", []))}</div>`;
+    res.forEach(p => { html += `<div class="cell">${ledSVG(p.ch, p.px)}</div>`; });
+    el.innerHTML = html;
+  });
+  openModal("ovHelp");
+}
+
+/* stats */
+function loadStats(){ return Object.assign({ played:0, won:0, streak:0, best:0, dist:[0,0,0,0,0], lastDay:0 }, lsGet(statsKey(game), {})); }
+function recordStats(){
+  const s = loadStats();
+  s.played++;
+  if (game.status === "won"){
+    s.won++; s.dist[game.guesses.length - 1]++;
+    if (game.kind === "daily"){ s.streak = (s.lastDay === game.n - 1) ? s.streak + 1 : 1; s.lastDay = game.n; }
+    else s.streak++;
+  } else { s.streak = 0; if (game.kind === "daily") s.lastDay = game.n; }
+  s.best = Math.max(s.best, s.streak);
+  lsSet(statsKey(game), s);
+}
+function modeName(m){ return m === "classic" ? tr("classic") : m === "plus" ? "Plus" : "Pro"; }
+function openStats(){
+  applyStrings();
+  const s = loadStats();
+  const ended = game.status !== "playing";
+  const rb = document.getElementById("resultBox");
+  if (ended){
+    const title = game.status === "won" ? tr("found")(game.guesses.length) : tr("notFound");
+    let tiles = "";
+    for (const ch of game.secret) tiles += `<div class="cell">${ledSVG(ch, null, COLOR.b)}</div>`;
+    rb.innerHTML = `<p class="result-title">${title}</p><p class="small center" style="margin:2px 0 0">${tr("wordWas")}</p><div class="wordrow">${tiles}</div>`;
+  } else rb.innerHTML = "";
+  const pct = s.played ? Math.round(100 * s.won / s.played) : 0;
+  document.getElementById("statsGrid").innerHTML =
+    `<div><b>${s.played}</b><span>${tr("played")}</span></div><div><b>${pct}%</b><span>${tr("wins")}</span></div><div><b>${s.streak}</b><span>${tr("streak")}</span></div><div><b>${s.best}</b><span>${tr("best")}</span></div>`;
+  const mx = Math.max(1, ...s.dist);
+  let d = "";
+  for (let i=0;i<TRIES;i++){
+    const hit = ended && game.status === "won" && game.guesses.length === i + 1;
+    d += `<div class="drow"><span style="width:12px">${i+1}</span><div class="bar${hit ? " hit" : ""}" style="width:${Math.max(8, 100 * s.dist[i] / mx)}%">${s.dist[i]}</div></div>`;
+  }
+  document.getElementById("dist").innerHTML = d;
+  document.getElementById("statsTitle").textContent = `${game.kind === "daily" ? tr("stats") : tr("practice").charAt(0) + tr("practice").slice(1).toLowerCase()} (${game.lang.toUpperCase()}, ${modeName(game.mode)})`;
+  document.getElementById("btnShare").disabled = !ended;
+  const nw = document.getElementById("nextWord");
+  if (countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+  const tick = () => { const ms = msToMidnight(); const h = Math.floor(ms/3600000), m = Math.floor(ms%3600000/60000), sec = Math.floor(ms%60000/1000); nw.innerHTML = `${tr("next")} <span class="countdown">${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}</span>`; };
+  tick(); countdownTimer = setInterval(tick, 1000);
+  openModal("ovStats");
+}
+document.getElementById("btnStats").addEventListener("click", openStats);
+document.getElementById("btnNew").addEventListener("click", () => { closeAll(); newPractice(); });
+
+/* share */
+function shareText(){
+  const what = game.kind === "daily" ? tr("shareDay")(game.n) : tr("sharePractice");
+  const mode = game.mode === "classic" ? "" : ` ${modeName(game.mode)}`;
+  const score = game.status === "won" ? `${game.guesses.length}/5` : "X/5";
+  const results = game.guesses.map((w, i) => evaluate(w, game.secret, i, game.mode, game.lines));
+  const grid = results.map(res => res.map(p => {
+    if (p.correct) return "🟦";
+    let g = 0, r = 0; p.px.forEach(row => row.forEach(v => { if (v === "g") g++; else if (v === "r") r++; }));
+    if (!g && !r) return "⬛";
+    return g >= r ? "🟩" : "🟥";
+  }).join("")).join("\n");
+  return `${NAME} ${game.lang.toUpperCase()} ${what}${mode} ${score}\n${grid}${SITE_URL ? "\n" + SITE_URL : ""}`;
+}
+document.getElementById("btnShare").addEventListener("click", async () => {
+  const text = shareText();
+  try { if (navigator.share){ await navigator.share({ text }); return; } }
+  catch(e){ if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(text); toast(tr("copied")); }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast(tr("copied")); } catch(err){ toast(tr("copyFail")); }
+    ta.remove();
+  }
+});
+
+/* ================= START ================= */
+document.getElementById("logo").innerHTML = logoSVG();
+applyStrings();
+newDaily(true);
+if (!settings.seenHelp){ settings.seenHelp = true; saveSettings(); openHelp(); }
+</script>
+</body>
+</html>
