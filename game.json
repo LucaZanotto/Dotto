@@ -1,0 +1,15 @@
+{
+  "name": "DOTTO",
+  "description": {
+    "it": "Indovina la parola di 5 lettere con gli indizi a puntini: ogni tentativo accende i pixel giusti e spegne quelli sbagliati. Una parola al giorno, uguale per tutti, più l'allenamento con parole casuali.",
+    "en": "Guess the 5-letter word from pixel clues: every try lights up the right pixels and marks the wrong ones. One word a day, the same for everyone, plus practice with random words."
+  },
+  "accent": "#ffb324",
+  "languages": [
+    "it",
+    "en"
+  ],
+  "daily": true,
+  "preview": "preview.svg",
+  "order": 1
+}
